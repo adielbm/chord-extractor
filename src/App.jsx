@@ -1,5 +1,7 @@
-import { useEffect, useState, useRef } from "react";
-import ReactChord from '@tombatossals/react-chords/lib/Chord'
+import { useEffect, useState, useRef, useMemo } from "react";
+import ReactChord from "@tombatossals/react-chords/lib/Chord";
+import { Minus, Plus, ZoomIn, ZoomOut } from "lucide-react";
+import "./App.css";
 
 function App() {
   const [chords, setChords] = useState([]);
@@ -8,35 +10,32 @@ function App() {
   const [capo, setCapo] = useState(0);
   const [instrument, setInstrument] = useState("guitar");
   const audioRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [guitarData, setGuitarData] = useState(null);
   const [ukuleleData, setUkuleleData] = useState(null);
 
   const [filename, setFilename] = useState();
   const [audioSrc, setAudioSrc] = useState();
 
-  const chordsKeys = ["A", "Ab", "B", "Bb", "C", "Csharp", "D", "Db", "E", "Eb", "F", "Fsharp", "G"];
-
   const tunings = {
     guitar: {
       strings: 6,
       fretsOnChord: 4,
-      name: 'Guitar',
+      name: "Guitar",
       keys: [],
       tunings: {
-        standard: ['E', 'A', 'D', 'G', 'B', 'E']
-      }
+        standard: ["E", "A", "D", "G", "B", "E"],
+      },
     },
     ukulele: {
       strings: 4,
       fretsOnChord: 4,
-      name: 'Ukulele',
+      name: "Ukulele",
       keys: [],
       tunings: {
-        standard: ['G', 'C', 'E', 'A']
-      }
-    }
-  }
+        standard: ["G", "C", "E", "A"],
+      },
+    },
+  };
 
   useEffect(() => {
     fetch("guitar.json")
@@ -50,24 +49,23 @@ function App() {
       .then((res) => res.json())
       .then((data) => {
         setUkuleleData(data);
-        console.log(data);
       })
       .catch((err) => console.error("Failed to load data:", err));
   }, []);
 
   function getChordData(instrument, key, suffix) {
-    if (instrument == "guitar" && guitarData) {
-      return guitarData.chords[key]?.filter((chord) => chord.suffix == suffix)[0]?.positions[0] || []
+    if (instrument === "guitar" && guitarData) {
+      return guitarData.chords[key]?.filter((chord) => chord.suffix === suffix)[0]?.positions[0] || [];
     }
-    if (instrument == "ukulele" && ukuleleData) {
-      return ukuleleData.chords[key]?.filter((chord) => chord.suffix == suffix)[0]?.positions[0] || []
+    if (instrument === "ukulele" && ukuleleData) {
+      return ukuleleData.chords[key]?.filter((chord) => chord.suffix === suffix)[0]?.positions[0] || [];
     }
     return [];
   }
 
   const parseChord = (chord) => {
 
-    if (!chord || chord.length == 0) return { key: "", suffix: "" };
+    if (!chord || chord.length === 0) return { key: "", suffix: "" };
 
     let key;
     let suffix;
@@ -92,10 +90,10 @@ function App() {
       });
     }
 
-    if (suffix == "m") {
+    if (suffix === "m") {
       suffix = "minor";
     }
-    if (suffix == "") {
+    if (suffix === "") {
       suffix = "major";
     }
     // if (key == "Db") {
@@ -110,13 +108,13 @@ function App() {
 
   const ChordDiagram = ({ chord, instrument }) => {
     let { key, suffix } = parseChord(chord);
-    if (!chord || chord.length == 0) return null
+    if (!chord || chord.length === 0) return null;
     let chordData = getChordData(instrument, key, suffix);
-    if ((!chordData || chordData.length == 0) && suffix.includes("/")) {
+    if ((!chordData || chordData.length === 0) && suffix.includes("/")) {
       suffix = suffix.split("/")[0];
       chordData = getChordData(instrument, key, suffix);
     }
-    if (!chordData || chordData.length == 0) {
+    if (!chordData || chordData.length === 0) {
       return null;
     }
     return (
@@ -163,7 +161,12 @@ function App() {
     // Fetching the audio file dynamically
     const fetchAudio = async () => {
       try {
-        const response = await fetch(`./tmp.${extractExtension(filename)}`);
+        const extension = extractExtension(filename);
+        if (!extension) {
+          return;
+        }
+
+        const response = await fetch(`./tmp.${extension}`);
         if (response.ok) {
           const blob = await response.blob();
           const audioUrl = URL.createObjectURL(blob); // Create a temporary URL
@@ -189,18 +192,10 @@ function App() {
       if (event.code === "Space") {
         event.preventDefault();
         if (audioRef.current) {
-          if (isPlaying) {
-            console.log("pause");
+          if (!audioRef.current.paused) {
             audioRef.current.pause();
-            setIsPlaying(false); // Update state to reflect pause
-            console.log(chords);
-
           } else {
-            console.log("play");
             audioRef.current.play();
-            setIsPlaying(true); // Update state to reflect play
-            console.log(chords);
-
           }
         }
       }
@@ -211,11 +206,10 @@ function App() {
     return () => {
       document.removeEventListener("keydown", handleKeyPress);
     };
-  }, [isPlaying]); // Re-run the effect when isPlaying changes
+  }, []);
 
-  const chordDiagramCurrentRef = useRef(null);
-  const chordDiagramNextRef = useRef(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const rafRef = useRef(null);
 
   function simplifyChord(chord) {
     return chord.replace(/\/.*/, "").replace("A#", "Bb").replace("D#", "Eb");
@@ -243,35 +237,77 @@ function App() {
     );
   };
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
 
+    const syncCurrentTime = () => {
+      setCurrentTime(audio.currentTime || 0);
+    };
+
+    const stopRaf = () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+
+    const tick = () => {
+      setCurrentTime(audio.currentTime || 0);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    const handlePlay = () => {
+      stopRaf();
+      tick();
+    };
+
+    const handlePause = () => {
+      stopRaf();
+      syncCurrentTime();
+    };
+
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("pause", handlePause);
+    audio.addEventListener("seeking", syncCurrentTime);
+    audio.addEventListener("seeked", syncCurrentTime);
+    audio.addEventListener("timeupdate", syncCurrentTime);
+    audio.addEventListener("loadedmetadata", syncCurrentTime);
+    audio.addEventListener("ended", handlePause);
+
+    return () => {
+      stopRaf();
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("seeking", syncCurrentTime);
+      audio.removeEventListener("seeked", syncCurrentTime);
+      audio.removeEventListener("timeupdate", syncCurrentTime);
+      audio.removeEventListener("loadedmetadata", syncCurrentTime);
+      audio.removeEventListener("ended", handlePause);
+    };
+  }, [audioSrc]);
+
+  const activeChordIndex = useMemo(() => {
+    if (!chords.length) return -1;
+
+    return chords.findIndex((chord, index) => {
+      const next = chords[index + 1];
+      return chord.timestamp <= currentTime && (!next || next.timestamp > currentTime);
+    });
+  }, [chords, currentTime]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (audioRef.current) {
-        setCurrentTime(audioRef.current.currentTime);
+    if (activeChordIndex < 0 || !chords[activeChordIndex]) {
+      setCurrentChord(null);
+      setNextChord(null);
+      return;
+    }
 
-        // console.log(audioRef.current.currentTime, 'currentTime set chord')
-        setChords((prevChords) =>
-          prevChords.map((chord) => {
-            // current chord: `active`, next chords: "", previous chords: "actived"
-            if (chord.timestamp <= audioRef.current.currentTime && (!prevChords[prevChords.indexOf(chord) + 1] || prevChords[prevChords.indexOf(chord) + 1].timestamp > currentTime)) {
-              setCurrentChord(simplifyChord(chord.chord));
-              setNextChord(simplifyChord(prevChords[prevChords.indexOf(chord) + 1] ? prevChords[prevChords.indexOf(chord) + 1].chord : ""));
-              return { ...chord, classes: "active" };
-            } else if (chord.timestamp > audioRef.current.currentTime) {
-              return { ...chord, classes: "" };
-            } else {
-              return { ...chord, classes: "actived" };
-            }
-          })
-        );
-
-
-      }
-    }, 1200);
-
-    return () => clearInterval(interval);
-  }, []);
+    const active = chords[activeChordIndex];
+    const next = chords[activeChordIndex + 1];
+    setCurrentChord(simplifyChord(active.chord));
+    setNextChord(next ? simplifyChord(next.chord) : "");
+  }, [activeChordIndex, chords]);
 
   // useEffect(() => {
   //   const audio = audioRef.current;
@@ -334,66 +370,115 @@ function App() {
   };
 
   const extractExtension = (filename) => {
-    console.log(filename);
-    console.log(filename?.split('.').pop());
-    return filename?.split('.').pop();
-  }
+    return filename?.split(".").pop();
+  };
+
+  const controlButtonClass =
+    "inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-app-subtle bg-app-accent px-4 py-3 text-sm font-semibold tracking-wide text-app-text shadow-sm transition hover:border-app-subtle hover:bg-app-strong hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app";
+  const instrumentButtonClass =
+    "inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app";
 
   return (
-    <div>
-      <header>
-        <div id="control-bar">
-          <h2>{filename}</h2>
-          <audio ref={audioRef} controls>
-            <source src={audioSrc} type="audio/mpeg" />
-            Your browser does not support the audio element.
-          </audio>
-          <div id="transpose-bar">
-            <button onClick={() => transposeChords(1)}>Up (+)</button>
-            <button onClick={() => transposeChords(-1)}>Down (-)</button>
-            <span style={{ fontSize: "large", gap: "7px", color: "var(--c1)" }}>
-              CAPO <span id="capo-counter" style={{ color: "var(--c3)" }}>{capo}</span>
-            </span>
-            <input
-              type="radio"
-              id="guitar"
-              name="instrument"
-              value="guitar"
-              checked={instrument === "guitar"}
-              onChange={() => setInstrument("guitar")}
-            />
-            <label htmlFor="guitar">Guitar</label>
-            <input
-              type="radio"
-              id="ukulele"
-              name="instrument"
-              value="ukulele"
-              checked={instrument === "ukulele"}
-              onChange={() => setInstrument("ukulele")}
-            />
-            <label htmlFor="ukulele">Ukulele</label>
+    <div className="min-h-screen bg-app text-app-text">
+      <header className="sticky top-0 z-20 border-b border-app-subtle bg-app/90 backdrop-blur-sm">
+        <div className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-4 md:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)_minmax(240px,1fr)] lg:items-stretch">
+          <div className="space-y-3 rounded-2xl border border-app-subtle bg-app-panel p-4 shadow-sm">
+            <h1 className="truncate text-lg font-semibold tracking-tight md:text-xl">{filename || "Unknown file"}</h1>
+
+            <div className="rounded-xl border border-app-subtle bg-app-accent px-3 py-2">
+              <audio ref={audioRef} controls className="w-full">
+                <source src={audioSrc} type="audio/mpeg" />
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
+                <button className={controlButtonClass} onClick={() => transposeChords(-1)}>
+                <Minus size={18} strokeWidth={2.5} />
+                Transpose Down
+                </button>
+
+                <div className="inline-flex min-h-12 items-center justify-center rounded-xl border border-app-subtle bg-app-panel px-4 py-3 text-sm font-semibold tracking-wide shadow-sm">
+                  CAPO&nbsp;<span className="text-xl font-bold">{capo}</span>
+                </div>
+
+                <button className={controlButtonClass} onClick={() => transposeChords(1)}>
+                  <Plus size={18} strokeWidth={2.5} />
+                  Transpose Up
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  className={`${instrumentButtonClass} ${instrument === "guitar" ? "border-app-strong bg-app-strong text-app-text" : "border-app-subtle bg-app-accent text-app-text hover:border-app-subtle hover:bg-app-strong hover:text-app-text"}`}
+                  onClick={() => setInstrument("guitar")}
+                >
+                  Guitar
+                </button>
+                <button
+                  className={`${instrumentButtonClass} ${instrument === "ukulele" ? "border-app-strong bg-app-strong text-app-text" : "border-app-subtle bg-app-accent text-app-text hover:border-app-subtle hover:bg-app-strong hover:text-app-text"}`}
+                  onClick={() => setInstrument("ukulele")}
+                >
+                  Ukulele
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button className={controlButtonClass} onClick={handleZoomOut}>
+                  <ZoomOut size={18} strokeWidth={2.5} />
+                  Zoom Out
+                </button>
+                <button className={controlButtonClass} onClick={handleZoomIn}>
+                  <ZoomIn size={18} strokeWidth={2.5} />
+                  Zoom In
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="chord-diagram-card">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-app-muted">Now</p>
+            <ChordDiagram chord={currentChord} instrument={instrument} />
+            <h3 className="text-2xl font-bold tracking-tight">{currentChord || "..."}</h3>
+          </div>
+
+          <div className="chord-diagram-card opacity-80">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-app-muted">Next</p>
+            <ChordDiagram chord={nextChord} instrument={instrument} />
+            <h3 className="text-2xl font-bold tracking-tight">{nextChord || "..."}</h3>
           </div>
         </div>
-        <div className="chord-diagram-bar" style={{ backgroundColor: "#fff2d2" }}>
-          <ChordDiagram chord={currentChord} instrument={instrument} />
-          <h3>{currentChord || "..."}</h3>
-        </div>
-        <div className="chord-diagram-bar" style={{ opacity: 0.7 }}>
-          <ChordDiagram chord={nextChord} instrument={instrument} />
-          <h3>{nextChord || "..."}</h3>
-        </div>
       </header>
-      <div>
-        <button onClick={() => handleZoomIn()}>Zoom In</button>
-        <button onClick={() => handleZoomOut()}>Zoom Out</button>
-      </div>
-      <ul id="chords">
-        {chords.map((item, index) => (
-          <li key={index} onClick={() => handleChordClick(item.timestamp)} className={`${item.classes}`} style={{ width: item.width + "px", animationDuration: item.duration + "s" }}>
-            {item.chord}
-          </li>
-        ))}
-      </ul>
+
+      <main className="mx-auto w-full max-w-7xl px-4 pb-8 pt-4 md:px-6">
+        <ul className="flex flex-wrap gap-2 md:gap-3">
+          {chords.map((item, index) => (
+            <li
+              key={index}
+              onClick={() => handleChordClick(item.timestamp)}
+              className={`chord-chip ${index === activeChordIndex ? "active" : index < activeChordIndex ? "actived" : ""}`}
+              style={{
+                width: `${Math.max(item.width, 96)}px`,
+                "--index": index,
+                "--progress": `${Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    index === activeChordIndex
+                      ? ((currentTime - item.timestamp) / Math.max(item.duration, 0.001)) * 100
+                      : index < activeChordIndex
+                        ? 100
+                        : 0
+                  )
+                )}%`,
+              }}
+            >
+              {item.chord}
+            </li>
+          ))}
+        </ul>
+      </main>
     </div>
   );
 }

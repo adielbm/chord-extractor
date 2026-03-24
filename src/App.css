@@ -1,42 +1,101 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+.chord-diagram-card {
+  display: grid;
+  min-height: 240px;
+  align-content: start;
+  justify-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--app-border);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--app-panel) 82%, var(--app-accent));
+  padding: 1rem;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  animation: card-enter 360ms ease both;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.chord-diagram-card:nth-of-type(2) {
+  animation-delay: 60ms;
 }
 
-@keyframes logo-spin {
+.chord-diagram-card:nth-of-type(3) {
+  animation-delay: 120ms;
+}
+
+.chord-diagram-card svg {
+  max-height: 170px;
+}
+
+.chord-chip {
+  list-style: none;
+  display: inline-flex;
+  min-height: 3.25rem;
+  min-width: 6rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--app-border);
+  border-radius: 0.75rem;
+  background: var(--app-panel);
+  color: var(--app-fg);
+  padding: 0.25rem 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, color 120ms ease;
+  animation: chip-enter 220ms ease both;
+  animation-delay: calc(var(--index, 0) * 14ms);
+}
+
+.chord-chip:hover {
+  transform: translateY(-1px);
+  background: var(--app-accent);
+}
+
+.chord-chip.actived {
+  background: linear-gradient(
+    to right,
+    var(--app-border-strong) 0%,
+    var(--app-border-strong) 100%,
+    var(--app-border-strong) 100%,
+    var(--app-border-strong) 100%
+  );
+}
+
+.chord-chip.active {
+  background: linear-gradient(
+    to right,
+    var(--app-border-strong) 0%,
+    var(--app-border-strong) var(--progress, 0%),
+    var(--app-panel) var(--progress, 0%),
+    var(--app-panel) 100%
+  );
+}
+
+@media (prefers-color-scheme: dark) {
+  .chord-diagram-card {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@keyframes card-enter {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
+    transform: translateY(12px);
   }
+
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+@keyframes chip-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
-}
 
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
