@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import ReactChord from "@tombatossals/react-chords/lib/Chord";
-import { Minus, Plus, ZoomIn, ZoomOut } from "lucide-react";
+import { Minus, Plus, ZoomIn, ZoomOut, Check } from "lucide-react";
 import "./App.css";
 
 function App() {
@@ -14,6 +14,8 @@ function App() {
   const [ukuleleData, setUkuleleData] = useState(null);
 
   const [filename, setFilename] = useState();
+  const [displayName, setDisplayName] = useState();
+  const [youtubeUrl, setYoutubeUrl] = useState();
   const [audioSrc, setAudioSrc] = useState();
 
   const tunings = {
@@ -153,6 +155,10 @@ function App() {
 
         setChords(finalChords);
         setFilename(data.filename);
+        setDisplayName(data.display_name || data.filename);
+        setYoutubeUrl(data.youtube_url);
+        console.log("DEBUG: data from JSON =", data);
+        console.log("DEBUG: display_name =", data.display_name, "filename =", data.filename, "youtube_url =", data.youtube_url);
       })
       .catch((err) => console.error("Failed to load data:", err));
   }, []);
@@ -383,7 +389,14 @@ function App() {
       <header className="sticky top-0 z-20 border-b border-app-subtle bg-app/90 backdrop-blur-sm">
         <div className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-4 md:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)_minmax(240px,1fr)] lg:items-stretch">
           <div className="space-y-3 rounded-2xl border border-app-subtle bg-app-panel p-4 shadow-sm">
-            <h1 className="truncate text-lg font-semibold tracking-tight md:text-xl">{filename || "Unknown file"}</h1>
+            <div className="flex flex-col gap-1">
+              <h1 className="truncate text-lg font-semibold tracking-tight md:text-xl">{displayName || filename || "Unknown file"}</h1>
+              {youtubeUrl && (
+                <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-app-muted hover:text-app-accent truncate underline">
+                  {youtubeUrl}
+                </a>
+              )}
+            </div>
 
             <div className="rounded-xl border border-app-subtle bg-app-accent px-3 py-2">
               <audio ref={audioRef} controls className="w-full">
@@ -414,12 +427,14 @@ function App() {
                   className={`${instrumentButtonClass} ${instrument === "guitar" ? "border-app-strong bg-app-strong text-app-text" : "border-app-subtle bg-app-accent text-app-text hover:border-app-subtle hover:bg-app-strong hover:text-app-text"}`}
                   onClick={() => setInstrument("guitar")}
                 >
+                  {instrument === "guitar" && <Check size={18} strokeWidth={2.5} />}
                   Guitar
                 </button>
                 <button
                   className={`${instrumentButtonClass} ${instrument === "ukulele" ? "border-app-strong bg-app-strong text-app-text" : "border-app-subtle bg-app-accent text-app-text hover:border-app-subtle hover:bg-app-strong hover:text-app-text"}`}
                   onClick={() => setInstrument("ukulele")}
                 >
+                  {instrument === "ukulele" && <Check size={18} strokeWidth={2.5} />}
                   Ukulele
                 </button>
               </div>

@@ -1,24 +1,49 @@
-this is an early version of a tool that extracts chords from audio files. It uses [chord-extractor](https://github.com/ohollo/chord-extractor) to extract chords from audio files and `yt-dlp` to download audio from youtube videos. The extracted chords are then displayed using [tombatossals/react-chords](https://github.com/tombatossals/react-chords) + [tombatossals/chords-db](https://github.com/tombatossals/chords-db).
+this is a tool that extracts chords from audio files. it's basically a wrapper around chord-extractor (which is itself a wrapper around Chordino). It uses [chord-extractor](https://github.com/ohollo/chord-extractor) to extract chords from local audio files (or downloaded them from youtube videos using `yt-dlp` if a youtube link is provided). The extracted chords are then displayed using [tombatossals/react-chords](https://github.com/tombatossals/react-chords) + [tombatossals/chords-db](https://github.com/tombatossals/chords-db).
 
-it works for me. i hope it works for you too.
+it works for me. i really HOPE it works for you too :] 
 
 ![screenshot](screenshot.png)
 
 # Requirements
 
-- Python (it's work for me on python 3.8.10)
+- python 3.8.20 (for chord extraction via chord-extractor)
 - [chord-extractor](https://github.com/ohollo/chord-extractor) and its requirements
 - https://code.soundsoftware.ac.uk/projects/vamp-plugin-pack/files to install `Chordino and NNLS Chroma` plugins
-- yt-dlp
+- for youtube downloads:
+    - yt-dlp
+    - python 3.9 or newer (for yt-dlp support)
+
+# Setup
+
+First make sure you have pyenv installed. see: https://github.com/pyenv/pyenv#installation
+
+Then install both Python versions:
+
+```bash
+# Install latest python
+pyenv install 3.13
+
+# Install python 3.8 for chord-extractor
+pyenv install 3.8.10
+pyenv local 3.8.10  # Set it as default for this project
+
+# Install chord-extractor dependencies in Python 3.8 environment
+pip install -r requirements.txt
+
+# Install yt-dlp in Python 3.9+ (adjust version if needed)
+python3.13 -m pip install yt-dlp
+
+# Install main dependencies in Python 3.8 environment
+pip install -r requirements.txt
+
+# optional: install and build the react app
+npm install
+npm run build
+```
 
 # Usage
 
-You can either: 
-
-- use the prebuilt react app in `dist`, or, 
-- build it yourself using `npm i` and `npm run build`.
-
-Inside the project directory run 
+**Inside** the project directory run either:
 
 ```bash
 # for a local file
