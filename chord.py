@@ -47,15 +47,17 @@ def copy_file_to_tmp(source_path):
     print(f"{source_path} has been copied to {dest_file}")
     return filename, dest_file
 
-def generate_json_with_chords(filename, chords, display_name=None, youtube_url=None):
+def generate_json_with_chords(filename, chords, display_name=None, youtube_url=None, is_video=False, video_filename=None):
     # Create the structure for the JSON
     song_data = {
         "filename": filename,
         "display_name": display_name or filename,
         "youtube_url": youtube_url,
+        "is_video": is_video,
+        "video_filename": video_filename,
         "chords": []
     }
-    print(f"DEBUG: Writing to JSON - filename={filename}, display_name={display_name or filename}, youtube_url={youtube_url}")
+    print(f"DEBUG: Writing to JSON - filename={filename}, display_name={display_name or filename}, youtube_url={youtube_url}, is_video={is_video}, video_filename={video_filename}")
     
     # Iterate through the chords and add them to the list
     for chord in chords:
@@ -141,25 +143,27 @@ def find_python_with_yt_dlp() -> str:
         "See README.md for more details."
     )
 
-def download_audio_from_youtube(url: str) -> Tuple[str, str]:
-    """Download audio from YouTube URL using yt-dlp."""
+def download_video_from_youtube(url: str) -> Tuple[str, str, str]:
+    """Download video from YouTube URL using yt-dlp.
+    Returns: (video_path, audio_path, title)
+    """
     python_cmd = find_python_with_yt_dlp()
-    
-    # check if the file exists in `dist` folder
-    tmp_file = os.path.join(SCRIPT_DIR, 'dist', 'tmp.webm')
-    if os.path.exists(tmp_file):
-        os.remove(tmp_file)
     
     # Create dist folder if it doesn't exist
     dist_dir = os.path.join(SCRIPT_DIR, 'dist')
     os.makedirs(dist_dir, exist_ok=True)
     
-    # Use yt-dlp via subprocess
+    # Download video (best MP4 format with audio)
+    video_file = os.path.join(dist_dir, 'tmp.mp4')
+    if os.path.exists(video_file):
+        os.remove(video_file)
+    
+    print("Downloading video from YouTube...")
     cmd = [
         python_cmd,
         '-m', 'yt_dlp',
-        '-f', 'bestaudio/best',
-        '-o', tmp_file,
+        '-f', 'best[ext=mp4]/best',  # Prefer MP4 format for browser compatibility
+        '-o', video_file,
         '--no-playlist',
         url
     ]
@@ -168,7 +172,8 @@ def download_audio_from_youtube(url: str) -> Tuple[str, str]:
     if result.returncode != 0:
         raise RuntimeError(f"yt-dlp download failed: {result.stderr}")
     
-    # Extract title using yt-dlp JSON output
+    # Extract title and download audio separately for chord extraction
+    print("Extracting title and downloading audio for chord analysis...")
     info_cmd = [
         python_cmd,
         '-m', 'yt_dlp',
@@ -182,7 +187,34 @@ def download_audio_from_youtube(url: str) -> Tuple[str, str]:
         info = json_lib.loads(info_result.stdout)
         title = info.get('title', None)
     
-    return tmp_file, title
+    # Download best audio for chord extraction
+    audio_file = os.path.join(dist_dir, 'tmp_audio.webm')
+    if os.path.exists(audio_file):
+        os.remove(audio_file)
+    
+    audio_cmd = [
+        python_cmd,
+        '-m', 'yt_dlp',
+        '-f', 'bestaudio/best',
+        '-o', audio_file,
+        '--no-playlist',
+        url
+    ]
+    
+    audio_result = subprocess.run(audio_cmd, capture_output=True, text=True)
+    if audio_result.returncode != 0:
+        print(f"Warning: Audio download failed: {audio_result.stderr}")
+        # Fall back to using video for audio extraction
+        audio_file = video_file
+    
+    return video_file, audio_file, title
+
+def download_audio_from_youtube(url: str) -> Tuple[str, str]:
+    """Legacy function - now downloads video and extracts audio.
+    Returns: (audio_path, title)
+    """
+    _, audio_file, title = download_video_from_youtube(url)
+    return audio_file, title
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -197,22 +229,28 @@ if __name__ == "__main__":
 
     # youtube url
     youtube_url = None
+    video_filename = None
+    is_video = False
+    
     if is_youtube_url(args.file):
         print('The audio file is a youtube url: ', args.file)
-        tmp_path, title  = download_audio_from_youtube(args.file)
-        tmp_filename = 'tmp.webm'
+        video_path, audio_path, title = download_video_from_youtube(args.file)
+        tmp_filename = 'tmp.mp4'
         display_name = title if title else 'YouTube Video'
         youtube_url = args.file
-        print(f"The audio file has been downloaded: {tmp_path}")
+        is_video = True
+        video_filename = 'tmp.mp4'
+        # Extract chords from audio
+        chords = extract_chords_from_audio(audio_path)
+        print(f"The video has been downloaded: {video_path}")
         print(f"DEBUG: Title extracted = {title}")
         print(f"DEBUG: Display name = {display_name}")
         print(f"DEBUG: YouTube URL = {youtube_url}")
-
     # local file
     else: 
         tmp_filename, tmp_path = copy_file_to_tmp(os.path.join(CURRENT_DIR, args.file))
         display_name = None
+        chords = extract_chords_from_audio(tmp_path)
 
-    chords = extract_chords_from_audio(tmp_path)
-    generate_json_with_chords(tmp_filename, chords, display_name, youtube_url)
+    generate_json_with_chords(tmp_filename, chords, display_name, youtube_url, is_video, video_filename)
     run_server()

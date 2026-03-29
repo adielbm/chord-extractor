@@ -26,3 +26,7 @@ public/tmp.*
 public/chords.json
 dist/tmp.*
 dist/chords.json
+
+*.m4a
+*.mp3
+*.webm

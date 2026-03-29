@@ -10,6 +10,7 @@ function App() {
   const [capo, setCapo] = useState(0);
   const [instrument, setInstrument] = useState("guitar");
   const audioRef = useRef(null);
+  const videoRef = useRef(null);
   const [guitarData, setGuitarData] = useState(null);
   const [ukuleleData, setUkuleleData] = useState(null);
 
@@ -17,6 +18,8 @@ function App() {
   const [displayName, setDisplayName] = useState();
   const [youtubeUrl, setYoutubeUrl] = useState();
   const [audioSrc, setAudioSrc] = useState();
+  const [videoSrc, setVideoSrc] = useState();
+  const [isVideo, setIsVideo] = useState(false);
 
   const tunings = {
     guitar: {
@@ -157,8 +160,9 @@ function App() {
         setFilename(data.filename);
         setDisplayName(data.display_name || data.filename);
         setYoutubeUrl(data.youtube_url);
+        setIsVideo(data.is_video || false);
         console.log("DEBUG: data from JSON =", data);
-        console.log("DEBUG: display_name =", data.display_name, "filename =", data.filename, "youtube_url =", data.youtube_url);
+        console.log("DEBUG: display_name =", data.display_name, "filename =", data.filename, "youtube_url =", data.youtube_url, "is_video =", data.is_video);
       })
       .catch((err) => console.error("Failed to load data:", err));
   }, []);
@@ -182,26 +186,54 @@ function App() {
         console.error('Error fetching audio:', error);
       }
     };
-    fetchAudio();
-  }, [filename]);
+
+    // Fetching the video file dynamically (for YouTube videos)
+    const fetchVideo = async () => {
+      try {
+        const response = await fetch('./tmp.mp4');
+        if (response.ok) {
+          const blob = await response.blob();
+          const videoUrl = URL.createObjectURL(blob);
+          setVideoSrc(videoUrl);
+        }
+      } catch (error) {
+        console.error('Error fetching video:', error);
+      }
+    };
+
+    if (isVideo) {
+      fetchVideo();
+    } else if (filename) {
+      fetchAudio();
+    }
+  }, [filename, isVideo]);
 
   useEffect(() => {
     // If the audio source changes, we force the audio to reload
-    if (audioRef.current && audioSrc) {
+    if (audioRef.current && audioSrc && !isVideo) {
       audioRef.current.load(); // Trigger reloading the audio element
       audioRef.current.play(); // Optionally auto-play the audio when the src changes
     }
-  }, [audioSrc]); // Run when audioSrc changes
+  }, [audioSrc, isVideo]);
+
+  useEffect(() => {
+    // If the video source changes, we force the video to reload
+    if (videoRef.current && videoSrc && isVideo) {
+      videoRef.current.load(); // Trigger reloading the video element
+      videoRef.current.play(); // Optionally auto-play the video when the src changes
+    }
+  }, [videoSrc, isVideo]);
 
   useEffect(() => {
     const handleKeyPress = (event) => {
       if (event.code === "Space") {
         event.preventDefault();
-        if (audioRef.current) {
-          if (!audioRef.current.paused) {
-            audioRef.current.pause();
+        const player = isVideo ? videoRef.current : audioRef.current;
+        if (player) {
+          if (!player.paused) {
+            player.pause();
           } else {
-            audioRef.current.play();
+            player.play();
           }
         }
       }
@@ -212,7 +244,7 @@ function App() {
     return () => {
       document.removeEventListener("keydown", handleKeyPress);
     };
-  }, []);
+  }, [isVideo]);
 
   const [currentTime, setCurrentTime] = useState(0);
   const rafRef = useRef(null);
@@ -244,11 +276,11 @@ function App() {
   };
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const media = isVideo ? videoRef.current : audioRef.current;
+    if (!media) return;
 
     const syncCurrentTime = () => {
-      setCurrentTime(audio.currentTime || 0);
+      setCurrentTime(media.currentTime || 0);
     };
 
     const stopRaf = () => {
@@ -259,7 +291,7 @@ function App() {
     };
 
     const tick = () => {
-      setCurrentTime(audio.currentTime || 0);
+      setCurrentTime(media.currentTime || 0);
       rafRef.current = requestAnimationFrame(tick);
     };
 
@@ -273,25 +305,25 @@ function App() {
       syncCurrentTime();
     };
 
-    audio.addEventListener("play", handlePlay);
-    audio.addEventListener("pause", handlePause);
-    audio.addEventListener("seeking", syncCurrentTime);
-    audio.addEventListener("seeked", syncCurrentTime);
-    audio.addEventListener("timeupdate", syncCurrentTime);
-    audio.addEventListener("loadedmetadata", syncCurrentTime);
-    audio.addEventListener("ended", handlePause);
+    media.addEventListener("play", handlePlay);
+    media.addEventListener("pause", handlePause);
+    media.addEventListener("seeking", syncCurrentTime);
+    media.addEventListener("seeked", syncCurrentTime);
+    media.addEventListener("timeupdate", syncCurrentTime);
+    media.addEventListener("loadedmetadata", syncCurrentTime);
+    media.addEventListener("ended", handlePause);
 
     return () => {
       stopRaf();
-      audio.removeEventListener("play", handlePlay);
-      audio.removeEventListener("pause", handlePause);
-      audio.removeEventListener("seeking", syncCurrentTime);
-      audio.removeEventListener("seeked", syncCurrentTime);
-      audio.removeEventListener("timeupdate", syncCurrentTime);
-      audio.removeEventListener("loadedmetadata", syncCurrentTime);
-      audio.removeEventListener("ended", handlePause);
+      media.removeEventListener("play", handlePlay);
+      media.removeEventListener("pause", handlePause);
+      media.removeEventListener("seeking", syncCurrentTime);
+      media.removeEventListener("seeked", syncCurrentTime);
+      media.removeEventListener("timeupdate", syncCurrentTime);
+      media.removeEventListener("loadedmetadata", syncCurrentTime);
+      media.removeEventListener("ended", handlePause);
     };
-  }, [audioSrc]);
+  }, [audioSrc, videoSrc, isVideo]);
 
   const activeChordIndex = useMemo(() => {
     if (!chords.length) return -1;
@@ -343,9 +375,10 @@ function App() {
   // }, [chords]);
 
   const handleChordClick = (timestamp) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = timestamp;
-      audioRef.current.play();
+    const media = isVideo ? videoRef.current : audioRef.current;
+    if (media) {
+      media.currentTime = timestamp;
+      media.play();
     }
   };
 
@@ -380,40 +413,45 @@ function App() {
   };
 
   const controlButtonClass =
-    "inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-app-subtle bg-app-accent px-4 py-3 text-sm font-semibold tracking-wide text-app-text shadow-sm transition hover:border-app-subtle hover:bg-app-strong hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app";
+    "inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-app-subtle bg-app-accent px-2 py-3 text-sm font-semibold tracking-wide text-app-text shadow-sm transition hover:border-app-subtle hover:bg-app-strong hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app";
   const instrumentButtonClass =
-    "inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app";
+    "inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl border px-2 py-3 text-sm font-semibold tracking-wide shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app";
 
   return (
     <div className="min-h-screen bg-app text-app-text">
-      <header className="sticky top-0 z-20 border-b border-app-subtle bg-app/90 backdrop-blur-sm">
-        <div className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-4 md:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)_minmax(240px,1fr)] lg:items-stretch">
-          <div className="space-y-3 rounded-2xl border border-app-subtle bg-app-panel p-4 shadow-sm">
-            <div className="flex flex-col gap-1">
-              <h1 className="truncate text-lg font-semibold tracking-tight md:text-xl">{displayName || filename || "Unknown file"}</h1>
-              {youtubeUrl && (
-                <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-app-muted hover:text-app-accent truncate underline">
-                  {youtubeUrl}
-                </a>
-              )}
-            </div>
+      <header className="sticky top-0 z-20 border-b border-app-subtle backdrop-blur-sm">
+        <div className="mx-auto grid w-full  gap-2 px-2 py-2 md:px-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_250px_250px] lg:items-stretch">
+            <div className="mx-auto w-full  gap-4">
+              <div className="space-y-3 rounded-2xl border border-app-subtle bg-app-panel p-4 shadow-sm">
+                <div className="flex flex-col gap-1">
+                  <h1 className="truncate font-semibold tracking-tight md:text-xl">{displayName || filename || "Unknown file"}</h1>
+                </div>
 
-            <div className="rounded-xl border border-app-subtle bg-app-accent px-3 py-2">
-              <audio ref={audioRef} controls className="w-full">
-                <source src={audioSrc} type="audio/mpeg" />
-                Your browser does not support the audio element.
-              </audio>
+                <div className="rounded-xl border border-app-subtle bg-app-accent">
+                  {isVideo ? (
+                    <video ref={videoRef} controls className="w-full rounded-lg max-h-80">
+                      <source src={videoSrc} type="video/mp4" />
+                      Your browser does not support the video element.
+                    </video>
+                  ) : (
+                    <audio ref={audioRef} controls className="w-full">
+                      <source src={audioSrc} type="audio/mpeg" />
+                      Your browser does not support the audio element.
+                    </audio>
+                  )}
+                </div>
+              </div>
             </div>
-
+          <div className="space-y-2 rounded-2xl border border-app-subtle bg-app-panel p-4 shadow-sm">
             <div className="grid gap-2">
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2">
                 <button className={controlButtonClass} onClick={() => transposeChords(-1)}>
-                <Minus size={18} strokeWidth={2.5} />
-                Transpose Down
+                  <Minus size={18} strokeWidth={2.5} />
+                  Transpose Down
                 </button>
 
-                <div className="inline-flex min-h-12 items-center justify-center rounded-xl border border-app-subtle bg-app-panel px-4 py-3 text-sm font-semibold tracking-wide shadow-sm">
-                  CAPO&nbsp;<span className="text-xl font-bold">{capo}</span>
+                <div className="min-h-12 items-center justify-center rounded-xl border border-app-subtle bg-app-panel py-3 text-sm font-semibold tracking-wide shadow-sm px-2 text-center">
+                  CAPO <br /><div className="text-xl font-bold">{capo}</div>
                 </div>
 
                 <button className={controlButtonClass} onClick={() => transposeChords(1)}>
@@ -463,10 +501,14 @@ function App() {
             <ChordDiagram chord={nextChord} instrument={instrument} />
             <h3 className="text-2xl font-bold tracking-tight">{nextChord || "..."}</h3>
           </div>
+         
         </div>
+
+
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-8 pt-4 md:px-6">
+
+      <main className="mx-auto w-full px-4 pb-8 pt-4 md:px-6">
         <ul className="flex flex-wrap gap-2 md:gap-3">
           {chords.map((item, index) => (
             <li
